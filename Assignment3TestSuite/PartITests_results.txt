@@ -1,0 +1,12 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Assignment3 -> D:\CIT_2025_Assignment3PartII\Assignment3\bin\Debug\net9.0\Assignment3.dll
+  Server -> D:\CIT_2025_Assignment3PartII\Server\bin\Debug\net9.0\Server.dll
+  Assignment3TestSuite -> D:\CIT_2025_Assignment3PartII\Assignment3TestSuite\bin\Debug\net9.0\Assignment3TestSuite.dll
+Test run for D:\CIT_2025_Assignment3PartII\Assignment3TestSuite\bin\Debug\net9.0\Assignment3TestSuite.dll (.NETCoreApp,Version=v9.0)
+VSTest version 17.14.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    24, Skipped:     0, Total:    24, Duration: 31 ms - Assignment3TestSuite.dll (net9.0)
