@@ -2,13 +2,20 @@ using System.Text.Json.Serialization;
 
 
     // Request class - represents what clients send to the server
-    public class Request
-    {
-        public string Method { get; set; }
-        public string Path { get; set; }
-        public string Date { get; set; }
-        public string Body { get; set; }
-    }
+  public class Request
+{
+    [JsonPropertyName("method")]
+    public string Method { get; set; }
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; }
+
+    [JsonPropertyName("date")]
+    public string Date { get; set; }
+
+    [JsonPropertyName("body")]
+    public string Body { get; set; }
+}
 
     // Response class - represents what server sends back to clients
     public class Response

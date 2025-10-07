@@ -1,47 +1,58 @@
 using System.Linq;
 
-    // UrlParser class - parses URLs to extract path and ID
-    public class UrlParser
+// UrlParser class - parses URLs to extract path and ID
+public class UrlParser
+{
+    public bool HasId { get; set; }
+    public string Id { get; set; }
+    public string Path { get; set; }
+    
+    public bool ParseUrl(string url)
     {
-        public bool HasId { get; set; }
-        public string Id { get; set; }
-        public string Path { get; set; }
+        // Reset properties
+        HasId = false;
+        Id = null;
+        Path = null;
         
-        public bool ParseUrl(string url)
+        if (string.IsNullOrEmpty(url))
+            return false;
+            
+        // Remove leading slash if present
+        if (url.StartsWith("/"))
+            url = url.Substring(1);
+            
+        // Split the URL by '/'
+        var parts = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        
+        // Check if we have at least 2 parts (api/categories)
+        if (parts.Length < 2)
+            return false;
+
+        // If there are exactly 3 parts, the last one must be a valid integer ID
+        if (parts.Length == 3)
         {
-            // Reset properties
-            HasId = false;
-            Id = null;
-            Path = null;
-            
-            if (string.IsNullOrEmpty(url))
-                return false;
-                
-            // Remove leading slash if present
-            if (url.StartsWith("/"))
-                url = url.Substring(1);
-                
-            // Split the URL by '/'
-            var parts = url.Split('/');
-            
-            // Check if we have at least 2 parts (api/categories)
-            if (parts.Length < 2)
-                return false;
-                
-            // Check if last part is a number (ID)
-            if (parts.Length >= 3 && int.TryParse(parts[parts.Length - 1], out _))
+            if (int.TryParse(parts[2], out _))
             {
                 HasId = true;
-                Id = parts[parts.Length - 1];
-                // Reconstruct path without the ID
-                Path = "/" + string.Join("/", parts.Take(parts.Length - 1));
+                Id = parts[2];
+                Path = "/" + parts[0] + "/" + parts[1];
+                return true;
             }
             else
             {
-                HasId = false;
-                Path = "/" + string.Join("/", parts);
+                // Invalid ID → fail parse → server returns 4 Bad Request
+                return false;
             }
-            
+        }
+
+        // If only 2 parts → just /api/categories
+        if (parts.Length == 2)
+        {
+            Path = "/" + parts[0] + "/" + parts[1];
             return true;
         }
+
+        // More than 3 parts not allowed
+        return false;
     }
+}

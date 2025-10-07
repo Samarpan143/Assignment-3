@@ -112,7 +112,7 @@ namespace Server
                     return new Response
                     {
                         Status = "1 Ok",
-                        Body = request.Body ?? string.Empty
+                        Body = request.Body
                     };
                 }
 
