@@ -1,101 +1,96 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 
-    // RequestValidator class - validates incoming CJTP requests
-    public class RequestValidator
+namespace Assignment1;
+
+public class Request
+{
+    public string Method { get; set; }
+    public string Path { get; set; }
+    public string Date { get; set; }
+    public string Body { get; set; }
+}
+
+public class Response
+{
+    public string Status { get; set; }
+}
+
+public class RequestValidator
+{
+    public Response ValidateRequest(Request request)
     {
-        public Response ValidateRequest(Request request)
+        if (request == null)
+            return new Response { Status = "4 missing request" };
+        
+        var facts = new
         {
-            var errors = new List<string>();
-            
-            // Check method
-            if (string.IsNullOrEmpty(request.Method))
+            MethodLower = request.Method?.Trim().ToLower(),
+            HasPath = !string.IsNullOrWhiteSpace(request.Path),
+            HasDate = !string.IsNullOrWhiteSpace(request.Date),
+            HasBody = !string.IsNullOrWhiteSpace(request.Body)
+        };
+
+        bool bodyRequired = facts.MethodLower == "create" || facts.MethodLower == "update" ||
+                            facts.MethodLower == "echo";
+
+        var reason = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(facts.MethodLower))
+        {
+            reason.Add("missing method");
+        }
+        else
+        {
+            bool allowed = facts.MethodLower is "read" or "create" or "update" or "delete" or "echo";
+            if (!allowed) reason.Add("illegal method");
+        }
+        
+        // path: missing
+        if (!facts.HasPath) reason.Add("missing path");
+        
+        // date: missing / illegal number
+        if (!facts.HasDate)
+        {
+            reason.Add("missing date");
+        }
+        else
+        {
+            long _;
+            if (!long.TryParse(request.Date, out _))
+                reason.Add("illegal date");
+        }
+
+        if (bodyRequired)
+        {
+            if (!facts.HasBody)
             {
-                errors.Add("missing method");
+                reason.Add("missing body");
             }
-            else if (!IsValidMethod(request.Method))
+            else
             {
-                errors.Add("illegal method");
-            }
-            
-            // Check path
-            if (string.IsNullOrEmpty(request.Path))
-            {
-                errors.Add("missing path");
-            }
-            
-            // Check date
-            if (string.IsNullOrEmpty(request.Date))
-            {
-                errors.Add("missing date");
-            }
-            else if (!IsValidUnixTimestamp(request.Date))
-            {
-                errors.Add("illegal date");
-            }
-            
-            // Check body for methods that require it
-            if (RequiresBody(request.Method))
-            {
-                if (string.IsNullOrEmpty(request.Body))
+                try
                 {
-                    errors.Add("missing body");
+                    JsonDocument.Parse(request.Body);
                 }
-                else if (RequiresJsonBody(request.Method) && !IsValidJson(request.Body))
+                catch
                 {
-                    errors.Add("illegal body");
+                    reason.Add("illegal body");
                 }
             }
-            
-            // Return response
-            if (errors.Count > 0)
-            {
-                return new Response
-                {
-                    Status = "4 " + string.Join(", ", errors)
-                };
-            }
-            
-            return new Response { Status = "1 Ok" };
         }
         
-        private bool IsValidMethod(string method)
+        if (reason.Count > 0)
         {
-            var validMethods = new[] { "create", "read", "update", "delete", "echo" };
-            return validMethods.Contains(method.ToLower());
+            string msg = reason[0];
+            for (int i = 1; i < reason.Count; i++)
+                msg += ", " + reason[i];
+
+            return new Response { Status = "4 " + msg };
         }
-        
-        private bool IsValidUnixTimestamp(string date)
-        {
-            return long.TryParse(date, out _);
-        }
-        
-        private bool RequiresBody(string method)
-        {
-            if (string.IsNullOrEmpty(method)) return false;
-            var methodsRequiringBody = new[] { "create", "update", "echo" };
-            return methodsRequiringBody.Contains(method.ToLower());
-        }
-        
-        private bool RequiresJsonBody(string method)
-        {
-            if (string.IsNullOrEmpty(method)) return false;
-            var methodsRequiringJsonBody = new[] { "create", "update" };
-            return methodsRequiringJsonBody.Contains(method.ToLower());
-        }
-        
-        private bool IsValidJson(string json)
-        {
-            try
-            {
-                JsonDocument.Parse(json);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+
+        // Success: tests expect "1 Ok" for all valid cases
+        return new Response { Status = "1 Ok" };
     }
+}
