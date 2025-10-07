@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-    // RequestValidator class - validates incoming CJTP requests
     public class RequestValidator
     {
         public Response ValidateRequest(Request request)
@@ -36,7 +35,7 @@ using System.Text.Json;
                 errors.Add("illegal date");
             }
             
-            // Check body for methods that require it
+            // Check body for methods
             if (RequiresBody(request.Method))
             {
                 if (string.IsNullOrEmpty(request.Body))

@@ -6,7 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Util;
-using Assignment3;
+
 
 namespace Server
 {
@@ -52,28 +52,30 @@ namespace Server
 
             try
             {
-                // Read data
                 do
                 {
                     bytesRead = stream.Read(buffer, 0, buffer.Length);
                     if (bytesRead == 0)
-                        break; // Client closed connection
+                        break;
                     memStream.Write(buffer, 0, bytesRead);
                 } while (stream.DataAvailable);
 
                 if (memStream.Length == 0)
-                    continue; // No data, keep waiting
+                    continue; 
 
                 var requestJson = Encoding.UTF8.GetString(memStream.ToArray());
+                Console.WriteLine($"Received: {requestJson}");  
+
                 var response = ProcessCJTPRequest(requestJson);
                 var responseJson = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                
+                Console.WriteLine($"Sending: {responseJson}");  
+                
                 var responseBytes = Encoding.UTF8.GetBytes(responseJson);
-
                 stream.Write(responseBytes, 0, responseBytes.Length);
             }
             catch (IOException)
             {
-                // Read timeout or client disconnected
                 break;
             }
         }
@@ -90,69 +92,74 @@ namespace Server
 }
 
 
-        private Response ProcessCJTPRequest(string requestJson)
+private Response ProcessCJTPRequest(string requestJson)
+{
+    try
+    {
+        var request = JsonSerializer.Deserialize<Request>(requestJson, new JsonSerializerOptions
         {
-            try
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        if (request?.Method?.ToLower() == "echo")
+        {
+            if (string.IsNullOrEmpty(request.Path))
             {
-                var request = JsonSerializer.Deserialize<Request>(requestJson, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
-
-                // Validate request first
-                var validationResponse = _requestValidator.ValidateRequest(request);
-                if (validationResponse.Status != "1 Ok")
-                {
-                    return validationResponse;
-                }
-
-                // Handle Echo
-                if (request.Method.ToLower() == "echo")
-                {
-                    return new Response
-                    {
-                        Status = "1 Ok",
-                        Body = request.Body
-                    };
-                }
-
-                // Parse URL
-                var urlParser = new UrlParser();
-                if (!urlParser.ParseUrl(request.Path))
-                    return new Response { Status = "4 Bad Request" };
-
-                // Invalid path
-                if (urlParser.Path != "/api/categories")
-                    return new Response { Status = "5 Not found" };
-
-                // ID validation for Read, Update, Delete
-                if ((request.Method.ToLower() == "read" ||
-                     request.Method.ToLower() == "update" ||
-                     request.Method.ToLower() == "delete") &&
-                    urlParser.HasId && !int.TryParse(urlParser.Id, out _))
-                {
-                    return new Response { Status = "4 Bad Request" };
-                }
-
-                // Route methods
-                return request.Method.ToLower() switch
-                {
-                    "read" => HandleRead(urlParser),
-                    "create" => HandleCreate(request, urlParser),
-                    "update" => HandleUpdate(request, urlParser),
-                    "delete" => HandleDelete(urlParser),
-                    _ => new Response { Status = "4 Bad Request" }
-                };
+                request.Path = "/echo"; 
             }
-            catch (JsonException)
+            
+            var echoValidation = _requestValidator.ValidateRequest(request);
+            if (echoValidation.Status != "1 Ok")
             {
-                return new Response { Status = "4 Bad Request" };
+                return echoValidation;
             }
-            catch
+            
+            return new Response
             {
-                return new Response { Status = "6 Error" };
-            }
+                Status = "1 Ok",
+                Body = request.Body ?? string.Empty
+            };
         }
+
+        var validationResponse = _requestValidator.ValidateRequest(request);
+        if (validationResponse.Status != "1 Ok")
+        {
+            return validationResponse;
+        }
+
+        var urlParser = new UrlParser();
+        if (!urlParser.ParseUrl(request.Path))
+            return new Response { Status = "4 Bad Request" };
+
+        if (urlParser.Path != "/api/categories")
+            return new Response { Status = "5 Not found" };
+
+        if ((request.Method.ToLower() == "read" ||
+             request.Method.ToLower() == "update" ||
+             request.Method.ToLower() == "delete") &&
+            urlParser.HasId && !int.TryParse(urlParser.Id, out _))
+        {
+            return new Response { Status = "4 Bad Request" };
+        }
+
+        return request.Method.ToLower() switch
+        {
+            "read" => HandleRead(urlParser),
+            "create" => HandleCreate(request, urlParser),
+            "update" => HandleUpdate(request, urlParser),
+            "delete" => HandleDelete(urlParser),
+            _ => new Response { Status = "4 Bad Request" }
+        };
+    }
+    catch (JsonException)
+    {
+        return new Response { Status = "4 Bad Request" };
+    }
+    catch
+    {
+        return new Response { Status = "6 Error" };
+    }
+}
 
 
 

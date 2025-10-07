@@ -2,15 +2,14 @@ using System.Collections.Generic;
 using System.Linq;
 
 
-    // CategoryService class - manages CRUD operations for categories
+    
     public class CategoryService
     {
         private List<Category> _categories;
-        private int _nextId = 4; // Start from 4 since we have 3 initial categories
+        private int _nextId = 4; 
         
         public CategoryService()
         {
-            // Initialize with the 3 predefined categories from PDF
             _categories = new List<Category>
             {
                 new Category { Id = 1, Name = "Beverages" },
@@ -21,7 +20,7 @@ using System.Linq;
         
         public List<Category> GetCategories()
         {
-            return _categories.ToList(); // Return a copy
+            return _categories.ToList(); 
         }
         
         public Category? GetCategory(int cid)
@@ -51,7 +50,6 @@ using System.Linq;
         
         public bool CreateCategory(int id, string name)
         {
-            // Check if category with this ID already exists
             if (_categories.Any(c => c.Id == id))
                 return false;
                 
@@ -59,7 +57,6 @@ using System.Linq;
             return true;
         }
         
-        // Helper method for creating category without specifying ID (for Part II)
         public Category CreateCategory(string name)
         {
             var category = new Category { Id = _nextId++, Name = name };
