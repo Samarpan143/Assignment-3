@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 
 
-    
     public class CategoryService
     {
         private List<Category> _categories;
@@ -10,6 +9,7 @@ using System.Linq;
         
         public CategoryService()
         {
+          
             _categories = new List<Category>
             {
                 new Category { Id = 1, Name = "Beverages" },
@@ -20,7 +20,7 @@ using System.Linq;
         
         public List<Category> GetCategories()
         {
-            return _categories.ToList(); 
+            return _categories.ToList();
         }
         
         public Category? GetCategory(int cid)
@@ -50,6 +50,7 @@ using System.Linq;
         
         public bool CreateCategory(int id, string name)
         {
+          
             if (_categories.Any(c => c.Id == id))
                 return false;
                 

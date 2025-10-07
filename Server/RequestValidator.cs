@@ -35,7 +35,7 @@ using System.Text.Json;
                 errors.Add("illegal date");
             }
             
-            // Check body for methods
+            // Check body for methods that require it
             if (RequiresBody(request.Method))
             {
                 if (string.IsNullOrEmpty(request.Body))

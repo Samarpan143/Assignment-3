@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+
   public class Request
 {
     [JsonPropertyName("method")]
@@ -14,11 +15,13 @@ using System.Text.Json.Serialization;
     [JsonPropertyName("body")]
     public string Body { get; set; }
 }
+
     public class Response
     {
         public string Status { get; set; }
         public string Body { get; set; }
     }
+
     public class Category
     {
         [JsonPropertyName("cid")]
