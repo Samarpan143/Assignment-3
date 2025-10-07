@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -33,62 +33,47 @@ namespace Server
             {
                 TcpClient client = _server.AcceptTcpClient();
                 Console.WriteLine("Client connected");
-                HandleClient(client);
+                System.Threading.Tasks.Task.Run(() => HandleClient(client));
             }
         }
 
-       private void HandleClient(TcpClient client)
-{
-    var stream = client.GetStream();
-    stream.ReadTimeout = 5000;
-
-    try
-    {
-        while (client.Connected)
+        private void HandleClient(TcpClient client)
         {
-            using var memStream = new MemoryStream();
-            var buffer = new byte[4096];
-            int bytesRead;
-
             try
             {
-                // Read data
-                do
+                using (client)
+                using (var stream = client.GetStream())
                 {
-                    bytesRead = stream.Read(buffer, 0, buffer.Length);
+                    var buffer = new byte[4096];
+                    var bytesRead = stream.Read(buffer, 0, buffer.Length);
+                    
                     if (bytesRead == 0)
-                        break; // Client closed connection
-                    memStream.Write(buffer, 0, bytesRead);
-                } while (stream.DataAvailable);
+                    {
+                        return; // Empty connection
+                    }
+                    
+                    var requestJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-                if (memStream.Length == 0)
-                    continue; // No data, keep waiting
+                    if (string.IsNullOrWhiteSpace(requestJson))
+                    {
+                        return; // Ignore empty requests
+                    }
 
-                var requestJson = Encoding.UTF8.GetString(memStream.ToArray());
-                var response = ProcessCJTPRequest(requestJson);
-                var responseJson = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-                var responseBytes = Encoding.UTF8.GetBytes(responseJson);
+                    // Process request and get response
+                    var response = ProcessCJTPRequest(requestJson);
 
-                stream.Write(responseBytes, 0, responseBytes.Length);
+                    // Send response
+                    var responseJson = JsonSerializer.Serialize(response, 
+                        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                    var responseBytes = Encoding.UTF8.GetBytes(responseJson);
+                    stream.Write(responseBytes, 0, responseBytes.Length);
+                }
             }
-            catch (IOException)
+            catch (Exception ex)
             {
-                // Read timeout or client disconnected
-                break;
+                Console.WriteLine($"Error handling client: {ex.Message}");
             }
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Unexpected client error: {ex.Message}");
-    }
-    finally
-    {
-        client.Close();
-        Console.WriteLine("Client disconnected safely");
-    }
-}
-
 
         private Response ProcessCJTPRequest(string requestJson)
         {
@@ -98,6 +83,11 @@ namespace Server
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
+
+                if (request == null)
+                {
+                    return new Response { Status = "4 Bad Request" };
+                }
 
                 // Validate request first
                 var validationResponse = _requestValidator.ValidateRequest(request);
@@ -121,18 +111,9 @@ namespace Server
                 if (!urlParser.ParseUrl(request.Path))
                     return new Response { Status = "4 Bad Request" };
 
-                // Invalid path
+                // Invalid path - only /api/categories is supported
                 if (urlParser.Path != "/api/categories")
                     return new Response { Status = "5 Not found" };
-
-                // ID validation for Read, Update, Delete
-                if ((request.Method.ToLower() == "read" ||
-                     request.Method.ToLower() == "update" ||
-                     request.Method.ToLower() == "delete") &&
-                    urlParser.HasId && !int.TryParse(urlParser.Id, out _))
-                {
-                    return new Response { Status = "4 Bad Request" };
-                }
 
                 // Route methods
                 return request.Method.ToLower() switch
@@ -148,59 +129,72 @@ namespace Server
             {
                 return new Response { Status = "4 Bad Request" };
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Internal server error: {ex.Message}");
                 return new Response { Status = "6 Error" };
             }
         }
 
-
-
         private Response HandleRead(UrlParser urlParser)
         {
-            if (urlParser.HasId)
+            try
             {
-                if (!int.TryParse(urlParser.Id, out int id))
-                    return new Response { Status = "4 Bad Request" };
-
-                var category = _categoryService.GetCategory(id);
-                if (category == null)
-                    return new Response { Status = "5 Not found" };
-
-                return new Response
+                if (urlParser.HasId)
                 {
-                    Status = "1 Ok",
-                    Body = JsonSerializer.Serialize(category, new JsonSerializerOptions
+                    if (!int.TryParse(urlParser.Id, out int id))
+                        return new Response { Status = "4 Bad Request" };
+
+                    var category = _categoryService.GetCategory(id);
+                    if (category == null)
+                        return new Response { Status = "5 Not found" };
+
+                    return new Response
                     {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    })
-                };
+                        Status = "1 Ok",
+                        Body = JsonSerializer.Serialize(category, new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                        })
+                    };
+                }
+                else
+                {
+                    var categories = _categoryService.GetCategories();
+                    return new Response
+                    {
+                        Status = "1 Ok",
+                        Body = JsonSerializer.Serialize(categories, new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                        })
+                    };
+                }
             }
-            else
+            catch (Exception ex)
             {
-                var categories = _categoryService.GetCategories();
-                return new Response
-                {
-                    Status = "1 Ok",
-                    Body = JsonSerializer.Serialize(categories, new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    })
-                };
+                Console.WriteLine($"Error in HandleRead: {ex.Message}");
+                return new Response { Status = "6 Error" };
             }
         }
 
         private Response HandleCreate(Request request, UrlParser urlParser)
         {
-            if (urlParser.HasId)
-                return new Response { Status = "4 Bad Request" };
-
             try
             {
+                if (urlParser.HasId)
+                    return new Response { Status = "4 Bad Request" };
+
                 var categoryData = JsonSerializer.Deserialize<Category>(request.Body, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
+
+                if (categoryData == null || string.IsNullOrEmpty(categoryData.Name))
+                {
+                    return new Response { Status = "4 Bad Request" };
+                }
+
                 var newCategory = _categoryService.CreateCategory(categoryData.Name);
 
                 return new Response
@@ -212,40 +206,64 @@ namespace Server
                     })
                 };
             }
-            catch
+            catch (JsonException)
             {
                 return new Response { Status = "4 Bad Request" };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleCreate: {ex.Message}");
+                return new Response { Status = "6 Error" };
             }
         }
 
         private Response HandleUpdate(Request request, UrlParser urlParser)
         {
-            if (!urlParser.HasId || !int.TryParse(urlParser.Id, out int id))
-                return new Response { Status = "4 Bad Request" };
-
             try
             {
+                if (!urlParser.HasId || !int.TryParse(urlParser.Id, out int id))
+                    return new Response { Status = "4 Bad Request" };
+
                 var categoryData = JsonSerializer.Deserialize<Category>(request.Body, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
+
+                if (categoryData == null || string.IsNullOrEmpty(categoryData.Name))
+                {
+                    return new Response { Status = "4 Bad Request" };
+                }
+
                 var success = _categoryService.UpdateCategory(id, categoryData.Name);
 
                 return success ? new Response { Status = "3 Updated" } : new Response { Status = "5 Not found" };
             }
-            catch
+            catch (JsonException)
             {
                 return new Response { Status = "4 Bad Request" };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleUpdate: {ex.Message}");
+                return new Response { Status = "6 Error" };
             }
         }
 
         private Response HandleDelete(UrlParser urlParser)
         {
-            if (!urlParser.HasId || !int.TryParse(urlParser.Id, out int id))
-                return new Response { Status = "4 Bad Request" };
+            try
+            {
+                if (!urlParser.HasId || !int.TryParse(urlParser.Id, out int id))
+                    return new Response { Status = "4 Bad Request" };
 
-            var success = _categoryService.DeleteCategory(id);
-            return success ? new Response { Status = "1 Ok" } : new Response { Status = "5 Not found" };
+                var success = _categoryService.DeleteCategory(id);
+                return success ? new Response { Status = "1 Ok" } : new Response { Status = "5 Not found" };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleDelete: {ex.Message}");
+                return new Response { Status = "6 Error" };
+            }
         }
     }
 }
